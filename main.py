@@ -9,8 +9,6 @@ import requests
 import time
 import os
 from datetime import datetime, timedelta
-from flask import Flask
-from threading import Thread
 
 # =========================
 # 🔧 KONFIGURASI
@@ -204,23 +202,13 @@ def run_bot_loop():
             
         time.sleep(3600) # Jeda 1 jam (3600 detik)
 
-# ===================================================================
-# ⚙️ SERVER WEB DENGAN FLASK (TITIK MASUK UTAMA)
-# ===================================================================
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    # Endpoint yang akan di-ping oleh UptimeRobot
-    return "AI Crypto Screener is Running 24/7!"
-
-# Bagian utama yang dieksekusi saat Render memulai aplikasi
+# Ganti 'if __name__ == "__main__":' yang lama
+# DENGAN INI (Script hanya menjalankan tugas sekali)
 if __name__ == "__main__":
-    # 1. Mulai loop bot utama di thread terpisah (agar tidak memblokir server web)
-    bot_thread = Thread(target=run_bot_loop)
-    bot_thread.start()
-    
-    # 2. Mulai server web Flask di thread utama (untuk menerima ping 24/7)
-    port = int(os.environ.get('PORT', 10000))
-
-    app.run(host='0.0.0.0', port=port)
+    try:
+        data = get_top_coins(50)
+        pesan = buat_pesan(data)
+        kirim_telegram(pesan)
+        print(f"[{datetime.now()}] ✅ Update terkirim ke Telegram.")
+    except Exception as e:
+        print(f"[{datetime.now()}] ❌ Error saat menjalankan bot:", e)
