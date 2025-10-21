@@ -17,9 +17,9 @@ from threading import Thread
 # =========================
 # MENGAMBIL VARIABEL DARI ENVIRONMENT (RENDER SECRETS)
 # Ganti nilai default 'ISI_API_KEY_CMC_KAMU' dll. dengan nilai API key Anda jika Anda tidak menggunakan environment variables.
-CMC_API_KEY = os.environ.get('11403b1c047048fd9b26b0fe8d5d9afe') 
-TELEGRAM_TOKEN = os.environ.get('8072824519:AAGWarv-XRwq0cU7WkfmRKflYQkdkdjaGE')
-CHAT_ID = os.environ.get('7568851202')
+CMC_API_KEY = os.environ.get('') 
+TELEGRAM_TOKEN = os.environ.get('')
+CHAT_ID = os.environ.get('')
 
 # Penyimpanan status early warning & akumulasi
 early_warning_status = {}
@@ -222,4 +222,5 @@ if __name__ == "__main__":
     
     # 2. Mulai server web Flask di thread utama (untuk menerima ping 24/7)
     port = int(os.environ.get('PORT', 10000))
+
     app.run(host='0.0.0.0', port=port)
