@@ -13,15 +13,17 @@ from datetime import datetime, timedelta
 # =========================
 # 🔧 KONFIGURASI
 # =========================
-# MENGAMBIL VARIABEL DARI ENVIRONMENT (RENDER SECRETS)
-# Ganti nilai default 'ISI_API_KEY_CMC_KAMU' dll. dengan nilai API key Anda jika Anda tidak menggunakan environment variables.
-CMC_API_KEY = os.environ.get('') 
-TELEGRAM_TOKEN = os.environ.get('')
-CHAT_ID = os.environ.get('')
+# MENGAMBIL VARIABEL DARI ENVIRONMENT (PASTIKAN SUDAH DIEKSPORT DI TERMINAL PYTHONANYWHERE!)
+# HANYA GUNAKAN NAMA VARIABEL DI SINI, BUKAN NILAI KUNCI ASLI.
+CMC_API_KEY = os.environ.get('CMC_API_KEY') 
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+CHAT_ID = os.environ.get('CHAT_ID')
 
 # Penyimpanan status early warning & akumulasi
-early_warning_status = {}
-accumulation_status = {}
+# DIHAPUS KARENA STATUS TIDAK DAPAT DISIMPAN DI AKUN GRATIS PYTHONANYWHERE
+# early_warning_status = {}
+# accumulation_status = {}
+
 
 # =========================
 # 📩 FUNGSI KIRIM TELEGRAM
@@ -32,6 +34,7 @@ def kirim_telegram(pesan):
     try:
         requests.post(url, data=data)
     except Exception as e:
+        # Jika GAGAL KIRIM, tampilkan error di log PythonAnywhere
         print("❌ Gagal kirim pesan Telegram:", e)
 
 # =========================
@@ -40,9 +43,17 @@ def kirim_telegram(pesan):
 def get_top_coins(limit=50):
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
     params = {"start": "1", "limit": str(limit), "convert": "USD"}
+    
+    # Perbaikan: Tambahkan pemeriksaan jika API Key kosong
+    if not CMC_API_KEY:
+        raise ValueError("CMC_API_KEY tidak ditemukan. Pastikan sudah di-export di terminal.")
+
     headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
     r = requests.get(url, headers=headers, params=params)
-    r.raise_for_status()
+    
+    # Jika ada error 401, error akan ditampilkan di log PythonAnywhere
+    r.raise_for_status() 
+    
     data = r.json()
     return data["data"]
 
@@ -104,7 +115,8 @@ def early_warning(coin):
 # 📊 BUAT PESAN TELEGRAM
 # =========================
 def buat_pesan(coins):
-    global early_warning_status, accumulation_status
+    # Hapus penggunaan early_warning_status dan accumulation_status 
+    # karena tidak dapat disimpan di akun gratis.
     wib = (datetime.utcnow() + timedelta(hours=7)).strftime("%d %b %Y | %H:%M WIB")
     pesan = f"📊 *[AI CRYPTO SCREENER v5.0]* — Update: {wib}\n\n"
     ada_sinyal = False
@@ -140,38 +152,13 @@ def buat_pesan(coins):
         # 🧭 Early Warning
         elif early_warning(coin):
             muncul = True
-            status = early_warning_status.get(symbol, {"count": 0, "last": None})
-            now = datetime.utcnow()
-            if status["last"] and (now - status["last"]).total_seconds() < 7200:
-                status["count"] += 1
-            else:
-                status["count"] = 1
-            status["last"] = now
-            early_warning_status[symbol] = status
-
             pesan += f"🧭 *{symbol}* (${price:,.4f})\n"
             pesan += f"💡 Early warning: mulai menunjukkan pergerakan bullish\n"
-            pesan += f"📈 {p1h:+.2f}% / 1 jam | {p24h:+.2f}% / 24 jam | {trend}\n"
-
-            if status["count"] >= 2:
-                pesan += "🔥 *Konfirmasi kuat:* potensi pump semakin dekat!\n"
-            pesan += "\n"
-
+            pesan += f"📈 {p1h:+.2f}% / 1 jam | {p24h:+.2f}% / 24 jam | {trend}\n\n"
+            
         # 🧱 Akumulasi Smart Money
-        if muncul:
-            acc = accumulation_status.get(symbol, {"count": 0, "last": None})
-            now = datetime.utcnow()
-            if acc["last"] and (now - acc["last"]).total_seconds() < 10800:
-                acc["count"] += 1
-            else:
-                acc["count"] = 1
-            acc["last"] = now
-            accumulation_status[symbol] = acc
-
-            if acc["count"] >= 3:
-                pesan += f"🧱 *{symbol}* dalam fase akumulasi aktif*\n"
-                pesan += f"Smart money kemungkinan sedang mengumpulkan!\n\n"
-                ada_sinyal = True
+        # Fitur ini dihilangkan karena bergantung pada penyimpanan status sebelumnya
+        # Untuk menjalankan fitur ini perlu upgrade akun berbayar atau database eksternal
 
         if muncul:
             ada_sinyal = True
@@ -181,29 +168,8 @@ def buat_pesan(coins):
     return pesan
 
 # =====================================================================
-# 🕒 FUNGSI UTAMA BOT (LOOP)
+# 🏃 BLOK UTAMA: HANYA JALANKAN SATU KALI (KHUSUS PYTHONANYWHERE)
 # =====================================================================
-def run_bot_loop():
-    # Loop bot utama yang berjalan setiap 1 jam
-    while True:
-        try:
-            data = get_top_coins(50)
-            pesan = buat_pesan(data)
-            kirim_telegram(pesan)
-            print(f"[{datetime.now()}] ✅ Update terkirim ke Telegram.")
-        except requests.exceptions.HTTPError as err:
-            error_message = f"[{datetime.now()}] ❌ Error API/HTTP: {err}"
-            print(error_message)
-            kirim_telegram(f"⛔️ Bot Error: {error_message}")
-        except Exception as e:
-            error_message = f"[{datetime.now()}] ❌ Error tidak terduga: {e}"
-            print(error_message)
-            kirim_telegram(f"⛔️ Bot Error: {error_message}")
-            
-        time.sleep(3600) # Jeda 1 jam (3600 detik)
-
-# Ganti 'if __name__ == "__main__":' yang lama
-# DENGAN INI (Script hanya menjalankan tugas sekali)
 if __name__ == "__main__":
     try:
         data = get_top_coins(50)
@@ -211,4 +177,6 @@ if __name__ == "__main__":
         kirim_telegram(pesan)
         print(f"[{datetime.now()}] ✅ Update terkirim ke Telegram.")
     except Exception as e:
-        print(f"[{datetime.now()}] ❌ Error saat menjalankan bot:", e)
+        # Menampilkan pesan error di log PythonAnywhere jika gagal
+        print(f"[{datetime.now()}] ❌ FATAL ERROR. Bot gagal berjalan:", e)
+
