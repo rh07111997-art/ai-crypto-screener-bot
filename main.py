@@ -14,44 +14,46 @@ from datetime import datetime, timedelta
 # 🔧 KONFIGURASI
 # =========================
 # MENGAMBIL VARIABEL DARI ENVIRONMENT (PASTIKAN SUDAH DIEKSPORT DI TERMINAL PYTHONANYWHERE!)
-# HANYA GUNAKAN NAMA VARIABEL DI SINI, BUKAN NILAI KUNCI ASLI.
-CMC_API_KEY = os.environ.get('CMC_API_KEY') 
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
-CHAT_ID = os.environ.get('CHAT_ID')
-
-# Penyimpanan status early warning & akumulasi
-# DIHAPUS KARENA STATUS TIDAK DAPAT DISIMPAN DI AKUN GRATIS PYTHONANYWHERE
-# early_warning_status = {}
-# accumulation_status = {}
-
+CMC_API_KEY = os.environ.get('11403b1c047048fd9b26b0fe8d5d9afe') 
+TELEGRAM_TOKEN = os.environ.get('8490918160:AAEfvmptL0qPfXmavKi4H1HbjwgDCcG7Yz4')
+CHAT_ID = os.environ.get('7568851202') 
+# Pastikan CHAT_ID adalah ID Negatif jika dikirim ke Grup/Channel
 
 # =========================
 # 📩 FUNGSI KIRIM TELEGRAM
 # =========================
 def kirim_telegram(pesan):
+    """Mengirim pesan ke Telegram menggunakan Bot API."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": pesan, "parse_mode": "Markdown"}
+    
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("❌ ERROR: TELEGRAM_TOKEN atau CHAT_ID tidak ditemukan/kosong.")
+        return
+
     try:
-        requests.post(url, data=data)
+        r = requests.post(url, data=data)
+        # Tambahkan log untuk debug jika Telegram menolak pesan
+        if r.status_code != 200:
+             print(f"❌ Gagal kirim pesan Telegram. Status: {r.status_code}, Respons: {r.text}")
     except Exception as e:
-        # Jika GAGAL KIRIM, tampilkan error di log PythonAnywhere
         print("❌ Gagal kirim pesan Telegram:", e)
 
 # =========================
 # 💰 FUNGSI AMBIL DATA COINMARKETCAP
 # =========================
 def get_top_coins(limit=50):
+    """Mengambil data koin dari CoinMarketCap API."""
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
     params = {"start": "1", "limit": str(limit), "convert": "USD"}
     
-    # Perbaikan: Tambahkan pemeriksaan jika API Key kosong
     if not CMC_API_KEY:
         raise ValueError("CMC_API_KEY tidak ditemukan. Pastikan sudah di-export di terminal.")
 
     headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
     r = requests.get(url, headers=headers, params=params)
     
-    # Jika ada error 401, error akan ditampilkan di log PythonAnywhere
+    # Akan menampilkan error 401, 429, dll., di log PythonAnywhere
     r.raise_for_status() 
     
     data = r.json()
@@ -85,21 +87,6 @@ def akan_pump(coin):
     return False
 
 # =========================
-# 📈 TREND ANALYZER
-# =========================
-def analisis_trend(q):
-    p1h = q["percent_change_1h"]
-    p24h = q["percent_change_24h"]
-    avg_per_hour = p24h / 24
-    diff = p1h - avg_per_hour
-    if diff > 2:
-        return "🔺 Reversal Naik"
-    elif diff < -2:
-        return "🔻 Reversal Turun"
-    else:
-        return "⚪ Sideways"
-
-# =========================
 # 🧭 EARLY WARNING
 # =========================
 def early_warning(coin):
@@ -115,8 +102,6 @@ def early_warning(coin):
 # 📊 BUAT PESAN TELEGRAM
 # =========================
 def buat_pesan(coins):
-    # Hapus penggunaan early_warning_status dan accumulation_status 
-    # karena tidak dapat disimpan di akun gratis.
     wib = (datetime.utcnow() + timedelta(hours=7)).strftime("%d %b %Y | %H:%M WIB")
     pesan = f"📊 *[AI CRYPTO SCREENER v5.0]* — Update: {wib}\n\n"
     ada_sinyal = False
@@ -130,35 +115,30 @@ def buat_pesan(coins):
         rank = coin["cmc_rank"]
         symbol = coin["symbol"]
         score = ai_score(coin)
-        trend = analisis_trend(q)
 
         muncul = False
 
-        # 🚀 Pump Cepat
+        # 🚀 Pump Cepat (Kuat)
         if p1h * 2 >= 10 or score >= 0.9:
             muncul = True
             pesan += f"🚀 *{symbol}* (${price:,.2f})\n"
+            pesan += f"🔥 Sinyal PUMP KUAT | Peningkatan volume dan harga\n"
             pesan += f"🕒 {p1h*2:+.2f}% / 2 jam | {p24h:+.2f}% / 24 jam\n"
-            pesan += f"💰 Volume: ${volume/1_000_000:,.2f}M | Rank #{rank} | Score: {score}\n"
-            pesan += f"📊 Trend: {trend}\n\n"
+            pesan += f"💰 Volume: ${volume/1_000_000:,.2f}M | Rank #{rank} | Score: {score}\n\n"
 
         # ⚠️ Akan Pump
         elif akan_pump(coin):
             muncul = True
             pesan += f"⚠️ *{symbol}* (${price:,.4f})\n"
-            pesan += f"🩵 Volume meningkat (pra-pump)\n"
-            pesan += f"📈 Momentum bullish awal | {trend}\n\n"
+            pesan += f"🩵 Pra-Pump: Volume meningkat, harga mulai naik perlahan\n"
+            pesan += f"📈 {p1h:+.2f}% / 1 jam | {p24h:+.2f}% / 24 jam\n\n"
 
         # 🧭 Early Warning
         elif early_warning(coin):
             muncul = True
             pesan += f"🧭 *{symbol}* (${price:,.4f})\n"
             pesan += f"💡 Early warning: mulai menunjukkan pergerakan bullish\n"
-            pesan += f"📈 {p1h:+.2f}% / 1 jam | {p24h:+.2f}% / 24 jam | {trend}\n\n"
-            
-        # 🧱 Akumulasi Smart Money
-        # Fitur ini dihilangkan karena bergantung pada penyimpanan status sebelumnya
-        # Untuk menjalankan fitur ini perlu upgrade akun berbayar atau database eksternal
+            pesan += f"📈 {p1h:+.2f}% / 1 jam | {p24h:+.2f}% / 24 jam\n\n"
 
         if muncul:
             ada_sinyal = True
@@ -176,7 +156,11 @@ if __name__ == "__main__":
         pesan = buat_pesan(data)
         kirim_telegram(pesan)
         print(f"[{datetime.now()}] ✅ Update terkirim ke Telegram.")
+    except requests.exceptions.HTTPError as err:
+        error_msg = f"[{datetime.now()}] ❌ ERROR API/HTTP: {err}"
+        print(error_msg)
+        kirim_telegram(f"🤖 Bot Error (CMC): API Gagal ({err})")
     except Exception as e:
-        # Menampilkan pesan error di log PythonAnywhere jika gagal
-        print(f"[{datetime.now()}] ❌ FATAL ERROR. Bot gagal berjalan:", e)
-
+        error_msg = f"[{datetime.now()}] ❌ FATAL ERROR. Bot gagal berjalan: {e}"
+        print(error_msg)
+        kirim_telegram(f"🤖 Bot Error: {e}")
